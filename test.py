@@ -2,9 +2,8 @@ import argparse
 
 import torch
 from torch import nn
-from torch.autograd import Variable
 
-from model.BiBloSA import BiBloSA
+from model.model import NN4SNLI
 from model.data import SNLI
 
 
@@ -34,7 +33,7 @@ def test(model, data, mode='test'):
 
 
 def load_model(args, data):
-    model = BiBloSA(args, data)
+    model = NN4SNLI(args, data)
     model.load_state_dict(torch.load(args.model_path))
 
     if args.gpu > -1:
@@ -46,13 +45,14 @@ def load_model(args, data):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', default=64, type=int)
-    parser.add_argument('--dropout', default=0.25, type=float)
+    parser.add_argument('--block-size', default=3, type=int)
     parser.add_argument('--data-type', default='SNLI')
+    parser.add_argument('--dropout', default=0.25, type=float)
     parser.add_argument('--epoch', default=50, type=int)
     parser.add_argument('--gpu', default=0, type=int)
-    parser.add_argument('--hidden-size', default=300, type=int)
-    parser.add_argument('--learning-rate', default=1.0, type=float)
-    parser.add_argument('--weight-decay', default=5e-5, type=float)
+    #parser.add_argument('--hidden-size', default=300, type=int)
+    parser.add_argument('--mSA-scalar', default=5.0, type=float)
+    parser.add_argument('--print-freq', default=2000, type=int)
     parser.add_argument('--word-dim', default=300, type=int)
 
     parser.add_argument('--model-path', required=True)

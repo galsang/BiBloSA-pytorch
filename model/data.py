@@ -3,6 +3,7 @@ from torchtext import datasets
 from torchtext.vocab import GloVe
 
 from nltk import word_tokenize
+import numpy as np
 
 
 class SNLI():
@@ -17,5 +18,18 @@ class SNLI():
 
         self.train_iter, self.dev_iter, self.test_iter = \
             data.BucketIterator.splits((self.train, self.dev, self.test),
-                                       batch_sizes=[args.batch_size] * 3,
+                                       batch_size=args.batch_size,
                                        device=args.gpu)
+
+        self.calculate_block_size(args.batch_size)
+
+    def calculate_block_size(self, B):
+        data_lengths = []
+        for e in self.train.examples:
+            data_lengths.append(len(e.premise))
+            data_lengths.append(len(e.hypothesis))
+
+        mean = np.mean(data_lengths)
+        std = np.std(data_lengths)
+
+        self.block_size = int((2 * (std * ((2 * np.log(B)) ** (1/2)) + mean)) ** (1/3))

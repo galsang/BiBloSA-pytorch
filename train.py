@@ -4,22 +4,21 @@ import os
 import torch
 
 from torch import nn, optim
-from torch.autograd import Variable
 from tensorboardX import SummaryWriter
 from time import gmtime, strftime
 
-from model.BiBloSA import BiBloSA
+from model.model import NN4SNLI
 from model.data import SNLI
 from test import test
 
 
 def train(args, data):
-    model = BiBloSA(args, data)
+    model = NN4SNLI(args, data)
     if args.gpu > -1:
         model.cuda(args.gpu)
 
     parameters = filter(lambda p: p.requires_grad, model.parameters())
-    optimizer = optim.AdaDelta(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
+    optimizer = optim.Adadelta(parameters, lr=args.learning_rate, weight_decay=args.weight_decay)
     criterion = nn.CrossEntropyLoss()
 
     writer = SummaryWriter(log_dir='runs/' + args.model_time)
@@ -46,8 +45,8 @@ def train(args, data):
         optimizer.step()
 
         if (i + 1) % args.print_freq == 0:
-            dev_loss, dev_acc = test(model, args, data, mode='dev')
-            test_loss, test_acc = test(model, args, data)
+            dev_loss, dev_acc = test(model, data, mode='dev')
+            test_loss, test_acc = test(model, data)
             c = (i + 1) // args.print_freq
 
             writer.add_scalar('loss/train', loss, c)
@@ -76,13 +75,15 @@ def train(args, data):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', default=64, type=int)
+    parser.add_argument('--block-size', default=3, type=int)
     parser.add_argument('--data-type', default='SNLI')
     parser.add_argument('--dropout', default=0.25, type=float)
     parser.add_argument('--epoch', default=50, type=int)
     parser.add_argument('--gpu', default=0, type=int)
-    parser.add_argument('--hidden-size', default=300, type=int)
-    parser.add_argument('--learning-rate', default=1.0, type=float)
-    parser.add_argument('--print-freq', default=500, type=int)
+    #parser.add_argument('--hidden-size', default=300, type=int)
+    parser.add_argument('--learning-rate', default=0.5, type=float)
+    parser.add_argument('--mSA-scalar', default=5.0, type=float)
+    parser.add_argument('--print-freq', default=2000, type=int)
     parser.add_argument('--weight-decay', default=5e-5, type=float)
     parser.add_argument('--word-dim', default=300, type=int)
 
@@ -94,13 +95,16 @@ def main():
     setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))
     setattr(args, 'model_time', strftime('%H:%M:%S', gmtime()))
+    # if block size is lower than 0, a heuristic for block size is applied.
+    if args.block_size < 0:
+        args.block_size = data.block_size
 
     print('training start!')
     best_model = train(args, data)
 
     if not os.path.exists('saved_models'):
         os.makedirs('saved_models')
-    torch.save(best_model.state_dict(), f'saved_models/BIBPM_{args.data_type}_{args.model_time}.pt')
+    torch.save(best_model.state_dict(), f'saved_models/BiBloSA_{args.data_type}_{args.model_time}.pt')
 
     print('training finished!')
 
