@@ -9,7 +9,7 @@ class customizedModule(nn.Module):
         super(customizedModule, self).__init__()
 
     # linear transformation (w/ initialization) + activation + dropout
-    def customizedLinear(self, in_dim, out_dim, activation=None, dropout=True):
+    def customizedLinear(self, in_dim, out_dim, activation=None, dropout=False):
         cl = nn.Sequential(nn.Linear(in_dim, out_dim))
         nn.init.xavier_uniform(cl[0].weight)
         nn.init.constant(cl[0].bias, 0)
@@ -41,8 +41,8 @@ class NN4SNLI(customizedModule):
         nn.init.uniform(self.word_emb.weight.data[0], -0.05, 0.05)
 
         self.BiBloSAN = BiBloSAN(self.args)
-        self.fc1 = self.customizedLinear(self.args.word_dim * 2 * 4, 300, activation=nn.ReLU())
-        self.fc2 = self.customizedLinear(300, self.args.class_size, dropout=False)
+        self.fc = self.customizedLinear(self.args.word_dim * 2 * 4, 300, activation=nn.ReLU(), dropout=True)
+        self.fc_softmax = self.customizedLinear(300, self.args.class_size)
 
     def forward(self, batch):
         # (batch, seq_len, word_dim)
@@ -53,9 +53,9 @@ class NN4SNLI(customizedModule):
         p = self.BiBloSAN(p)
         h = self.BiBloSAN(h)
 
-        x = torch.cat([p, h, p * h, p - h], dim=1)
-        x = self.fc1(x)
-        x = self.fc2(x)
+        x = F.dropout(torch.cat([p, h, p * h, torch.abs(p - h)], dim=1), p=self.args.dropout, training=self.training)
+        x = self.fc(x)
+        x = self.fc_softmax(x)
 
         return x
 
@@ -101,19 +101,25 @@ class mBloSA(customizedModule):
         self.init_mBloSA()
 
     def init_mSA(self):
-        self.m_W1 = self.customizedLinear(self.args.word_dim, self.args.word_dim, dropout=False)
-        self.m_W2 = self.customizedLinear(self.args.word_dim, self.args.word_dim, dropout=False)
+        self.m_W1 = self.customizedLinear(self.args.word_dim, self.args.word_dim)
+        self.m_W2 = self.customizedLinear(self.args.word_dim, self.args.word_dim)
+        self.m_b = nn.Parameter(torch.zeros(self.args.word_dim))
+
+        self.m_W1[0].bias.requires_grad = False
         self.m_W2[0].bias.requires_grad = False
 
         self.c = nn.Parameter(torch.Tensor([self.args.c]), requires_grad=False)
 
     def init_mBloSA(self):
-        self.g_W1 = self.customizedLinear(self.args.word_dim, self.args.word_dim, dropout=False)
-        self.g_W2 = self.customizedLinear(self.args.word_dim, self.args.word_dim, dropout=False)
+        self.g_W1 = self.customizedLinear(self.args.word_dim, self.args.word_dim)
+        self.g_W2 = self.customizedLinear(self.args.word_dim, self.args.word_dim)
+        self.g_b = nn.Parameter(torch.zeros(self.args.word_dim))
+
+        self.g_W1[0].bias.requires_grad = False
         self.g_W2[0].bias.requires_grad = False
 
-        self.f_W1 = self.customizedLinear(self.args.word_dim * 3, self.args.word_dim, activation=nn.ReLU(), dropout=False)
-        self.f_W2 = self.customizedLinear(self.args.word_dim * 3, self.args.word_dim, dropout=False)
+        self.f_W1 = self.customizedLinear(self.args.word_dim * 3, self.args.word_dim, activation=nn.ReLU())
+        self.f_W2 = self.customizedLinear(self.args.word_dim * 3, self.args.word_dim)
 
     def mSA(self, x):
         """
@@ -137,18 +143,17 @@ class mBloSA(customizedModule):
         # (1, seq_len, seq_len, 1)
         M = M.contiguous().view(1, M.size(0), M.size(1), 1)
         # (batch, 1, seq_len, word_dim)
+        # padding to deal with nan
         pad = torch.zeros(x.size(0), 1, x.size(-2), x.size(-1))
+        pad = Variable(pad).cuda(self.args.gpu).detach()
 
         # CASE 2 - x: (batch, block_num, seq_len, word_dim)
         if len(x.size()) == 4:
             M = M.unsqueeze(1)
             pad = torch.stack([pad] * x.size(1), dim=1)
 
-        # padding to deal with nan
-        pad = Variable(pad).cuda(self.args.gpu).detach()
-
         # (batch, (block_num), seq_len, seq_len, word_dim)
-        f = self.c * F.tanh((x_i + x_j) / self.c)
+        f = self.c * F.tanh((x_i + x_j + self.m_b) / self.c)
 
         # fw or bw masking
         if f.size(-2) > 1:
@@ -197,7 +202,7 @@ class mBloSA(customizedModule):
         # (batch, m, word_dim)
         o = self.mSA(v)
         # (batch, m, word_dim)
-        G = F.sigmoid(self.g_W1(o) + self.g_W2(v))
+        G = F.sigmoid(self.g_W1(o) + self.g_W2(v) + self.g_b)
         # (batch, m, word_dim)
         e = G * o + (1 - G) * v
 
@@ -221,8 +226,8 @@ class s2tSA(customizedModule):
         super(s2tSA, self).__init__()
 
         self.args = args
-        self.s2t_W1 = self.customizedLinear(hidden_size, hidden_size, activation=nn.ReLU(), dropout=False)
-        self.s2t_W = self.customizedLinear(hidden_size, hidden_size, dropout=False)
+        self.s2t_W1 = self.customizedLinear(hidden_size, hidden_size, activation=nn.ReLU())
+        self.s2t_W = self.customizedLinear(hidden_size, hidden_size)
 
     def forward(self, x):
         """
