@@ -7,7 +7,7 @@ Dataset: [SNLI](https://nlp.stanford.edu/projects/snli/)
 
 | Model        |  ACC(%)   | 
 |--------------|:----------:|
-| **Re-implementation (600D Bi-BloSAN)**            |   **?**   |  
+| **Re-implementation (600D Bi-BloSAN)**            |   **84.1**   |  
 | Baseline from the paper (480D Bi-BloSAN)          |   85.7    |    
 
 ## Development Environment
@@ -51,13 +51,15 @@ Please install the following library requirements specified in the **requirement
 
 **Note:** 
 
-- The two of most important hyperparameters are **block-size** (_r_ in the paper) and **mSA-scalar** (_c_ in the paper).
-The paper suggests some heuristics to decide the _r_ (in the Appendix) but there's no mention about _c_.
-In this implementation, they are chosen as **_r_=3** and **_c_=5**, following the settings of the authors' code. 
-But you can utilize the heuristic for _r_ if you set **_r_ < 0**.
-- The Dropout technique also exists in this model, but the strategy for it is not specified. 
-Therefore, to be naive, the dropout is adapted to normal fully connected layers, except for attention weights.
-- Furthermore, there're no details about what **480D** Bi-BloSAN is, which is suggested in the paper. Hence, the result is only reported for the **600D(300D-Forward + 300D-Backward)** Bi-BloSAN.
+- The two of most important hyperparameters are **block-size** (**_r_** in the paper) and **mSA-scalar** (**_c_** in the paper).
+The paper suggests a heuristic to decide the **_r_** (in the Appendix) but there's no mention about **_c_**.
+In this implementation, **_r_ is computed by the suggested heuristic** and **_c_** is set to **5**, following the settings of the authors.
+But you can also assign values to them manually.
+- The Dropout technique also exists in this model, but it is not specified that how the dropout is applied. 
+Therefore, to be naive, the dropout is adapted to layers for SNLI (**NN4SNLI** class) only.
+- Furthermore, there're no details about **480D Bi-BloSAN**, whose result is reported in the paper. 
+Hence, the result reported here is based on **600D(300D-Forward + 300D-Backward) Bi-BloSAN**. 
+Note that hyperparameter tuning hasn't been done thoroughly. The result can be improved with fine-tuning.
 
 ## Test
 

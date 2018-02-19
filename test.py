@@ -45,14 +45,12 @@ def load_model(args, data):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--batch-size', default=64, type=int)
-    parser.add_argument('--block-size', default=3, type=int)
+    parser.add_argument('--block-size', default=-1, type=int)
     parser.add_argument('--data-type', default='SNLI')
-    parser.add_argument('--dropout', default=0.25, type=float)
-    parser.add_argument('--epoch', default=50, type=int)
+    parser.add_argument('--dropout', default=0.1, type=float)
     parser.add_argument('--gpu', default=0, type=int)
     #parser.add_argument('--hidden-size', default=300, type=int)
     parser.add_argument('--mSA-scalar', default=5.0, type=float)
-    parser.add_argument('--print-freq', default=2000, type=int)
     parser.add_argument('--word-dim', default=300, type=int)
 
     parser.add_argument('--model-path', required=True)
@@ -64,6 +62,9 @@ if __name__ == '__main__':
 
     setattr(args, 'word_vocab_size', len(data.TEXT.vocab))
     setattr(args, 'class_size', len(data.LABEL.vocab))
+    # if block size is lower than 0, a heuristic for block size is applied.
+    if args.block_size < 0:
+        args.block_size = data.block_size
 
     print('loading model...')
     model = load_model(args, data)
