@@ -84,3 +84,6 @@ Note that hyperparameter tuning hasn't been done thoroughly. The result can be i
       --model-path MODEL_PATH
  
 **Note:** You should execute **test.py** with the same hyperparameters, which are used for training the model you want to run.    
+
+## MISC.
+The original code implemented by the authors (on Tensorflow) can be found [here](https://github.com/taoshen58/BiBloSA)
